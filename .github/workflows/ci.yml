@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '**.ps1'
+      - '**.psm1'
+      - 'config/**'
+      - 'tests/**'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    paths:
+      - '**.ps1'
+      - '**.psm1'
+      - 'config/**'
+      - 'tests/**'
+      - '.github/workflows/ci.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Pester unit tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Pester 5
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          Install-Module Pester -MinimumVersion 5.5.0 -Force -Scope CurrentUser
+          Import-Module Pester -MinimumVersion 5.5.0
+
+      - name: Run tests
+        shell: pwsh
+        run: |
+          $config = New-PesterConfiguration
+          $config.Run.Path = './tests'
+          $config.Run.Exit = $true
+          $config.Output.Verbosity = 'Detailed'
+          $config.TestResult.Enabled = $true
+          $config.TestResult.OutputPath = 'testResults.xml'
+          Invoke-Pester -Configuration $config
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pester-results
+          path: testResults.xml
+
+  install-smoke:
+    name: End-to-end deployment smoke test
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy configs only (skip winget install)
+        shell: pwsh
+        run: ./install.ps1 -SkipInstall
+
+      - name: Verify configs deployed to target paths
+        shell: pwsh
+        run: |
+          Import-Module ./lib/DotfileCore.psm1 -Force
+          $map = Get-ConfigMap -RepoRoot (Get-Location).Path
+          $missing = @()
+          foreach ($cfg in $map) {
+            if (-not (Test-Path -LiteralPath $cfg.Target)) {
+              $missing += $cfg.Name
+            } else {
+              Write-Host "[ok] $($cfg.Name) -> $($cfg.Target)"
+            }
+          }
+          if ($missing.Count -gt 0) {
+            throw "Configs not deployed: $($missing -join ', ')"
+          }
+
+      - name: Full install (with winget, allowed to fail)
+        shell: pwsh
+        run: ./install.ps1

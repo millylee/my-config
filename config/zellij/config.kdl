@@ -1,0 +1,34 @@
+// Zellij config - millylee/my-config
+// Docs: https://zellij.dev/documentation/
+
+theme "catppuccin-mocha"
+
+// Native Windows support is experimental; use WSL for the full experience
+default_shell "pwsh"
+
+pane_frames true
+mouse_mode true
+copy_on_select true
+scrollback_editor "nvim"
+
+default_layout "compact"
+default_mode "normal"
+
+ui {
+    pane_frames {
+        rounded_corners true
+        hide_session_name false
+    }
+}
+
+keybinds clear-defaults=false {
+    normal {
+        bind "Alt n" { NewPane; }
+        bind "Alt h" { MoveFocusOrTab "Left"; }
+        bind "Alt l" { MoveFocusOrTab "Right"; }
+        bind "Alt j" { MoveFocus "Down"; }
+        bind "Alt k" { MoveFocus "Up"; }
+        bind "Alt =" { Resize "Increase"; }
+        bind "Alt -" { Resize "Decrease"; }
+    }
+}

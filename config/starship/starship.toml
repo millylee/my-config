@@ -1,0 +1,100 @@
+"$schema" = 'https://starship.rs/config-schema.json'
+
+add_newline = true
+command_timeout = 1000
+
+format = """
+[](surface0)\
+$os\
+$username\
+[](bg:peach fg:surface0)\
+$directory\
+[](fg:peach bg:green)\
+$git_branch\
+$git_status\
+[](fg:green bg:teal)\
+$nodejs\
+$python\
+$rust\
+$golang\
+[](fg:teal bg:blue)\
+$cmd_duration\
+[](fg:blue)\
+$line_break\
+$character"""
+
+palette = 'catppuccin_mocha'
+
+[palettes.catppuccin_mocha]
+rosewater = "#f5e0dc"
+peach = "#fab387"
+green = "#a6e3a1"
+teal = "#94e2d5"
+blue = "#89b4fa"
+text = "#cdd6f4"
+surface0 = "#313244"
+base = "#1e1e2e"
+
+[os]
+disabled = false
+style = "bg:surface0 fg:text"
+
+[os.symbols]
+Windows = "󰍲"
+
+[username]
+show_always = true
+style_user = "bg:surface0 fg:text"
+style_root = "bg:surface0 fg:text"
+format = '[ $user ]($style)'
+
+[directory]
+style = "fg:base bg:peach"
+format = "[ $path ]($style)"
+truncation_length = 3
+truncation_symbol = "…/"
+
+[directory.substitutions]
+"Documents" = "󰈙 "
+"Downloads" = " "
+"Music" = "󰝚 "
+"Pictures" = " "
+"Developer" = "󰲋 "
+
+[git_branch]
+symbol = ""
+style = "bg:green"
+format = '[[ $symbol $branch ](fg:base bg:green)]($style)'
+
+[git_status]
+style = "bg:green"
+format = '[[($all_status$ahead_behind )](fg:base bg:green)]($style)'
+
+[nodejs]
+symbol = ""
+style = "bg:teal"
+format = '[[ $symbol( $version) ](fg:base bg:teal)]($style)'
+
+[python]
+symbol = ""
+style = "bg:teal"
+format = '[[ $symbol( $version) ](fg:base bg:teal)]($style)'
+
+[rust]
+symbol = ""
+style = "bg:teal"
+format = '[[ $symbol( $version) ](fg:base bg:teal)]($style)'
+
+[golang]
+symbol = ""
+style = "bg:teal"
+format = '[[ $symbol( $version) ](fg:base bg:teal)]($style)'
+
+[cmd_duration]
+min_time = 500
+style = "fg:base bg:blue"
+format = '[  $duration ]($style)'
+
+[character]
+success_symbol = '[❯](bold green)'
+error_symbol = '[❯](bold red)'
