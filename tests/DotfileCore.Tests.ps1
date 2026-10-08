@@ -7,13 +7,14 @@ BeforeAll {
 }
 
 Describe 'Get-WingetPackages' {
-    It 'returns exactly the 5 expected package IDs' {
+    It 'returns exactly the 6 expected package IDs' {
         $pkgs = Get-WingetPackages
-        $pkgs.Count | Should -Be 5
+        $pkgs.Count | Should -Be 6
         $pkgs | Should -Contain 'Microsoft.PowerShell'
         $pkgs | Should -Contain 'Zellij.Zellij'
         $pkgs | Should -Contain 'Starship.Starship'
         $pkgs | Should -Contain 'Alacritty.Alacritty'
+        $pkgs | Should -Contain 'Neovim.Neovim'
         $pkgs | Should -Contain 'DEVCOM.JetBrainsMonoNerdFont'
     }
 }
@@ -23,7 +24,9 @@ Describe 'Get-ConfigMap' {
         $map = Get-ConfigMap -RepoRoot $RepoRoot
         $map.Count | Should -Be 4
         ($map | Where-Object Name -eq 'starship').Source | Should -Match 'starship\.toml$'
-        ($map | Where-Object Name -eq 'powershell').Target | Should -Match 'Microsoft\.PowerShell_profile\.ps1$'
+        ($map | Where-Object Name -eq 'zellij').Target | Should -Match '[\\/]\.config[\\/]zellij[\\/]config\.kdl$'
+        $documents = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::MyDocuments)
+        ($map | Where-Object Name -eq 'powershell').Target | Should -Be (Join-Path $documents 'PowerShell/Microsoft.PowerShell_profile.ps1')
     }
 
     It 'all source config files exist in the repo' {
@@ -82,6 +85,12 @@ Describe 'Deploy-Config (copy mode idempotency)' {
 
     It 'throws when the source file does not exist' {
         { Deploy-Config -Source (Join-Path $tmp 'missing.toml') -Target $dst } | Should -Throw
+    }
+
+    It 'refuses to replace a directory at the target path' {
+        New-Item -ItemType Directory -Path $dst -Force | Out-Null
+        { Deploy-Config -Source $src -Target $dst -Force } | Should -Throw
+        Test-Path -LiteralPath $dst -PathType Container | Should -BeTrue
     }
 }
 

@@ -3,7 +3,7 @@
 
 theme "catppuccin-mocha"
 
-// Native Windows support is experimental; use WSL for the full experience
+// Zellij 0.44+ supports Windows natively
 default_shell "pwsh"
 
 pane_frames true

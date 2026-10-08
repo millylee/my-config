@@ -17,23 +17,40 @@ on:
       - 'tests/**'
       - '.github/workflows/ci.yml'
   workflow_dispatch:
+    inputs:
+      package_manager:
+        description: Package manager for the full installation test
+        required: true
+        default: Winget
+        type: choice
+        options:
+          - Winget
+          - Scoop
 
 jobs:
   test:
-    name: Pester unit tests
+    name: Pester tests (${{ matrix.shell }})
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shell: [powershell, pwsh]
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Pester 5
-        shell: pwsh
+        shell: ${{ matrix.shell }}
         run: |
+          if ($PSVersionTable.PSEdition -eq 'Desktop') {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            Install-PackageProvider NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser | Out-Null
+          }
           Set-PSRepository PSGallery -InstallationPolicy Trusted
-          Install-Module Pester -MinimumVersion 5.5.0 -Force -Scope CurrentUser
-          Import-Module Pester -MinimumVersion 5.5.0
+          Install-Module Pester -RequiredVersion 5.7.1 -Force -Scope CurrentUser -SkipPublisherCheck
+          Import-Module Pester -RequiredVersion 5.7.1
 
       - name: Run tests
-        shell: pwsh
+        shell: ${{ matrix.shell }}
         run: |
           $config = New-PesterConfiguration
           $config.Run.Path = './tests'
@@ -47,13 +64,37 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pester-results
+          name: pester-results-${{ matrix.shell }}
           path: testResults.xml
+
+  parse-compatibility:
+    name: Parse scripts (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse PowerShell scripts and modules
+        shell: pwsh
+        run: |
+          $failed = $false
+          Get-ChildItem -Recurse -File -Include *.ps1,*.psm1 | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) {
+              $failed = $true
+              Write-Error "$($_.FullName): $($errors.Message -join '; ')" -ErrorAction Continue
+            }
+          }
+          if ($failed) { throw 'PowerShell parser compatibility check failed.' }
 
   install-smoke:
     name: End-to-end deployment smoke test
     runs-on: windows-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -78,6 +119,41 @@ jobs:
             throw "Configs not deployed: $($missing -join ', ')"
           }
 
-      - name: Full install (with winget, allowed to fail)
+      - name: Preview Windows user setup safely
         shell: pwsh
-        run: ./install.ps1
+        run: ./windows/setup-user.ps1 -UserDataRoot (Join-Path $env:RUNNER_TEMP 'my-config-user-data') -WhatIf
+
+      - name: Preview both context menu styles safely
+        shell: pwsh
+        run: |
+          ./windows/shell-style.ps1 -ContextMenu Windows10 -WhatIf
+          ./windows/shell-style.ps1 -ContextMenu Windows11 -WhatIf
+
+      - name: Preview custom-location Scoop setup safely
+        shell: pwsh
+        run: |
+          if (Get-Command scoop -ErrorAction SilentlyContinue) {
+            Write-Host 'Scoop is preinstalled on this runner; path-conflict behavior is covered by Pester.'
+          } else {
+            ./windows/install-scoop.ps1 `
+              -ScoopRoot (Join-Path $env:RUNNER_TEMP 'Scoop') `
+              -ScoopGlobalRoot (Join-Path $env:RUNNER_TEMP 'ScoopGlobal') `
+              -WhatIf
+          }
+
+  full-install:
+    name: Full selected package-manager installation
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install packages and deploy configs
+        shell: pwsh
+        run: |
+          $arguments = @{ PackageManager = '${{ inputs.package_manager }}' }
+          if ($arguments.PackageManager -eq 'Scoop') {
+            $arguments.ScoopRoot = Join-Path $env:RUNNER_TEMP 'Scoop'
+            $arguments.ScoopGlobalRoot = Join-Path $env:RUNNER_TEMP 'ScoopGlobal'
+          }
+          ./install.ps1 @arguments

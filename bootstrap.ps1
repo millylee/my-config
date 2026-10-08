@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Online bootstrap: ensure dependencies -> clone/update repo -> run install.ps1.
+    Online bootstrap: ensure dependencies -> clone/update repo -> run install.ps1 with winget or Scoop.
 .DESCRIPTION
     Designed to be run remotely:
         irm https://raw.githubusercontent.com/millylee/my-config/master/bootstrap.ps1 | iex
@@ -9,11 +9,22 @@
     Local clone directory, defaults to $HOME\.dotfiles.
 .PARAMETER Branch
     Branch to check out, defaults to master.
+.PARAMETER PackageManager
+    Windows package manager used by install.ps1. Defaults to Winget.
 #>
 [CmdletBinding()]
 param(
     [string]$InstallDir = (Join-Path $HOME '.dotfiles'),
-    [string]$Branch = 'master'
+    [string]$Branch = 'master',
+    [ValidateSet('Winget', 'Scoop')][string]$PackageManager = 'Winget',
+    [string]$ScoopRoot,
+    [string]$ScoopGlobalRoot,
+    [string]$ScoopConfigPath,
+    [AllowEmptyCollection()][string[]]$ScoopPackages,
+    [AllowEmptyCollection()][string[]]$ScoopBuckets,
+    [string[]]$AddScoopPackage = @(),
+    [string[]]$AddScoopBucket = @(),
+    [switch]$AllowAdminScoop
 )
 
 Set-StrictMode -Version Latest
@@ -28,13 +39,12 @@ function Test-Cmd {
 
 Write-Host '==> Checking dependencies' -ForegroundColor Magenta
 
-if (-not (Test-Cmd 'winget')) {
-    Write-Warning 'winget not found. Install "App Installer" first: https://aka.ms/getwinget'
-    Write-Warning 'Re-run this script after installing it.'
-    return
-}
-
 if (-not (Test-Cmd 'git')) {
+    if (-not (Test-Cmd 'winget')) {
+        Write-Warning 'Neither git nor winget is available. Install "App Installer" first: https://aka.ms/getwinget'
+        Write-Warning 'Re-run this script after installing it.'
+        return
+    }
     Write-Host 'git not found, installing Git.Git via winget ...' -ForegroundColor Cyan
     winget install -e --id Git.Git --accept-package-agreements --accept-source-agreements --disable-interactivity | Out-Host
     $env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' +
@@ -63,4 +73,15 @@ if (-not (Test-Path -LiteralPath $installScript)) {
 }
 
 Write-Host '==> Running install script' -ForegroundColor Magenta
-& $installScript
+$installArguments = @{
+    PackageManager = $PackageManager
+    AllowAdminScoop = $AllowAdminScoop
+}
+if ($ScoopRoot) { $installArguments.ScoopRoot = $ScoopRoot }
+if ($ScoopGlobalRoot) { $installArguments.ScoopGlobalRoot = $ScoopGlobalRoot }
+if ($ScoopConfigPath) { $installArguments.ScoopConfigPath = $ScoopConfigPath }
+if ($PSBoundParameters.ContainsKey('ScoopPackages')) { $installArguments.ScoopPackages = $ScoopPackages }
+if ($PSBoundParameters.ContainsKey('ScoopBuckets')) { $installArguments.ScoopBuckets = $ScoopBuckets }
+if ($AddScoopPackage.Count -gt 0) { $installArguments.AddScoopPackage = $AddScoopPackage }
+if ($AddScoopBucket.Count -gt 0) { $installArguments.AddScoopBucket = $AddScoopBucket }
+& $installScript @installArguments

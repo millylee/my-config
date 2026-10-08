@@ -32,12 +32,14 @@ function Get-WingetPackages {
         'Zellij.Zellij'
         'Starship.Starship'
         'Alacritty.Alacritty'
+        'Neovim.Neovim'
         'DEVCOM.JetBrainsMonoNerdFont'
     )
 }
 
 function Get-ConfigMap {
     param([Parameter(Mandatory)][string]$RepoRoot)
+    $documents = [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::MyDocuments)
     return @(
         [pscustomobject]@{
             Name   = 'starship'
@@ -52,12 +54,12 @@ function Get-ConfigMap {
         [pscustomobject]@{
             Name   = 'zellij'
             Source = Join-Path $RepoRoot 'config/zellij/config.kdl'
-            Target = Join-Path $env:APPDATA 'zellij/config.kdl'
+            Target = Join-Path $HOME '.config/zellij/config.kdl'
         }
         [pscustomobject]@{
             Name   = 'powershell'
             Source = Join-Path $RepoRoot 'config/powershell/Microsoft.PowerShell_profile.ps1'
-            Target = Join-Path $HOME 'Documents/PowerShell/Microsoft.PowerShell_profile.ps1'
+            Target = Join-Path $documents 'PowerShell/Microsoft.PowerShell_profile.ps1'
         }
     )
 }
@@ -127,6 +129,10 @@ function Deploy-Config {
     }
 
     if (Test-Path -LiteralPath $Target) {
+        $targetItem = Get-Item -LiteralPath $Target -Force
+        if ($targetItem.PSIsContainer -and $targetItem.LinkType -ne 'SymbolicLink') {
+            throw "Config target is a directory and will not be replaced: $Target"
+        }
         if (-not $UseSymlink) {
             $sourceHash = (Get-FileHash -LiteralPath $Source).Hash
             $targetHash = (Get-FileHash -LiteralPath $Target).Hash
@@ -134,10 +140,10 @@ function Deploy-Config {
                 return 'Skipped'
             }
         }
-        $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+        $stamp = Get-Date -Format 'yyyyMMdd-HHmmssfff'
         $backup = "$Target.$stamp.bak"
         Copy-Item -LiteralPath $Target -Destination $backup -Force
-        Remove-Item -LiteralPath $Target -Force -Recurse
+        Remove-Item -LiteralPath $Target -Force
     }
 
     if ($UseSymlink) {

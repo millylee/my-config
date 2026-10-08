@@ -37,3 +37,6 @@ db.json
 *.ipr
 *.iws
 .idea/
+
+# Local test output
+testResults.xml

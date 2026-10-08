@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Install and configure a Windows terminal toolset (PowerShell 7 / Zellij / Starship / Alacritty / JetBrainsMono Nerd Font).
+    Install and configure a Windows terminal toolset with winget or Scoop.
 .DESCRIPTION
     Idempotent: already-installed software is skipped; configs are not re-deployed when content is unchanged.
 .PARAMETER Force
@@ -10,6 +10,18 @@
     Only deploy configs; skip winget installation.
 .PARAMETER SkipConfig
     Only install software; skip config deployment.
+.PARAMETER PackageManager
+    Package manager used for Windows software. Supported values: Winget, Scoop.
+.PARAMETER ScoopRoot
+    Optional custom per-user Scoop root. The Scoop installer chooses D:\Scoop when available.
+.PARAMETER ScoopGlobalRoot
+    Optional custom root for global Scoop applications.
+.PARAMETER ScoopConfigPath
+    Optional path to a .psd1 file that replaces the repository Scoop defaults.
+.PARAMETER ScoopPackages
+    Optional bucket/app list that replaces the configured package list.
+.PARAMETER ScoopBuckets
+    Optional name=url list that replaces the configured additional buckets.
 .EXAMPLE
     ./install.ps1
 .EXAMPLE
@@ -19,7 +31,16 @@
 param(
     [switch]$Force,
     [switch]$SkipInstall,
-    [switch]$SkipConfig
+    [switch]$SkipConfig,
+    [ValidateSet('Winget', 'Scoop')][string]$PackageManager = 'Winget',
+    [string]$ScoopRoot,
+    [string]$ScoopGlobalRoot,
+    [string]$ScoopConfigPath,
+    [AllowEmptyCollection()][string[]]$ScoopPackages,
+    [AllowEmptyCollection()][string[]]$ScoopBuckets,
+    [string[]]$AddScoopPackage = @(),
+    [string[]]$AddScoopBucket = @(),
+    [switch]$AllowAdminScoop
 )
 
 Set-StrictMode -Version Latest
@@ -27,6 +48,7 @@ $ErrorActionPreference = 'Stop'
 
 $RepoRoot = $PSScriptRoot
 Import-Module (Join-Path $RepoRoot 'lib/DotfileCore.psm1') -Force
+$failures = [System.Collections.Generic.List[string]]::new()
 
 function Write-Section {
     param([string]$Text)
@@ -36,12 +58,35 @@ function Write-Section {
 
 # 1. Install packages
 if (-not $SkipInstall) {
-    Write-Section 'Installing packages (winget)'
-    if (-not (Test-CommandExists 'winget')) {
-        Write-Warning 'winget not found. Install "App Installer" first: https://aka.ms/getwinget'
+    Write-Section "Installing packages ($PackageManager)"
+    if ($PackageManager -eq 'Scoop') {
+        try {
+            $scoopArguments = @{
+                AllowAdmin = $AllowAdminScoop
+            }
+            if ($ScoopRoot) { $scoopArguments.ScoopRoot = $ScoopRoot }
+            if ($ScoopGlobalRoot) { $scoopArguments.ScoopGlobalRoot = $ScoopGlobalRoot }
+            if ($ScoopConfigPath) { $scoopArguments.ConfigPath = $ScoopConfigPath }
+            if ($PSBoundParameters.ContainsKey('ScoopPackages')) { $scoopArguments.Packages = $ScoopPackages }
+            if ($PSBoundParameters.ContainsKey('ScoopBuckets')) { $scoopArguments.Buckets = $ScoopBuckets }
+            if ($AddScoopPackage.Count -gt 0) { $scoopArguments.AddPackage = $AddScoopPackage }
+            if ($AddScoopBucket.Count -gt 0) { $scoopArguments.AddBucket = $AddScoopBucket }
+            & (Join-Path $RepoRoot 'windows/install-scoop.ps1') @scoopArguments
+        } catch {
+            Write-Warning "Scoop setup failed: $($_.Exception.Message)"
+            $failures.Add('Scoop setup failed') | Out-Null
+        }
     } else {
-        foreach ($id in Get-WingetPackages) {
-            Install-Package -Id $id | Out-Null
+        if (-not (Test-CommandExists 'winget')) {
+            Write-Warning 'winget not found. Install "App Installer" first: https://aka.ms/getwinget'
+            $failures.Add('winget is unavailable') | Out-Null
+        } else {
+            foreach ($id in Get-WingetPackages) {
+                $result = Install-Package -Id $id
+                if ($result -eq 'Failed') {
+                    $failures.Add("package installation failed: $id") | Out-Null
+                }
+            }
         }
     }
 } else {
@@ -68,10 +113,19 @@ if (-not $SkipConfig) {
             Write-Host ("[{0,-7}] {1} -> {2}" -f $result, $cfg.Name, $cfg.Target) -ForegroundColor $color
         } catch {
             Write-Warning ("Config {0} deployment failed: {1}" -f $cfg.Name, $_.Exception.Message)
+            $failures.Add("config deployment failed: $($cfg.Name)") | Out-Null
         }
     }
 } else {
     Write-Host 'Skipped config deployment (-SkipConfig)' -ForegroundColor DarkGray
+}
+
+if ($failures.Count -gt 0) {
+    Write-Section 'Completed with errors'
+    foreach ($failure in $failures) {
+        Write-Host "[failed] $failure" -ForegroundColor Red
+    }
+    throw "Setup failed with $($failures.Count) error(s)."
 }
 
 Write-Section 'Done'
