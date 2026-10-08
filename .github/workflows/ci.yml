@@ -35,11 +35,13 @@ jobs:
       fail-fast: false
       matrix:
         shell: [powershell, pwsh]
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Pester 5
-        shell: ${{ matrix.shell }}
         run: |
           if ($PSVersionTable.PSEdition -eq 'Desktop') {
             [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -50,7 +52,6 @@ jobs:
           Import-Module Pester -RequiredVersion 5.7.1
 
       - name: Run tests
-        shell: ${{ matrix.shell }}
         run: |
           $config = New-PesterConfiguration
           $config.Run.Path = './tests'
