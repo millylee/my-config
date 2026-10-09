@@ -7,6 +7,8 @@
 
     Packages = @(
         'main/git'
+        'main/fnm'
+        'main/pnpm'
         'main/pwsh'
         'main/zellij'
         'main/starship'

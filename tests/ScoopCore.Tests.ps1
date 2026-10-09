@@ -17,7 +17,10 @@ Describe 'Scoop paths and package map' {
 
     It 'maps every configured Windows tool to a Scoop manifest' {
         $packages = @(Get-ScoopPackageMap)
-        $packages.Count | Should -Be 7
+        $packages.Count | Should -Be 9
+        "$($packages[0].Bucket)/$($packages[0].App)" | Should -Be 'main/git'
+        "$($packages[1].Bucket)/$($packages[1].App)" | Should -Be 'main/fnm'
+        "$($packages[2].Bucket)/$($packages[2].App)" | Should -Be 'main/pnpm'
         ($packages | ForEach-Object { "$($_.Bucket)/$($_.App)" }) | Should -Contain 'main/pwsh'
         ($packages | ForEach-Object { "$($_.Bucket)/$($_.App)" }) | Should -Contain 'main/zellij'
         ($packages | ForEach-Object { "$($_.Bucket)/$($_.App)" }) | Should -Contain 'main/starship'
@@ -140,13 +143,23 @@ Describe 'Install-ScoopBootstrap' {
 
 Describe 'Install-ScoopConfiguredPackages' {
     It 'adds required buckets and installs every configured package' {
+        $script:ScoopCalls = [System.Collections.Generic.List[string]]::new()
         Mock -ModuleName ScoopCore Get-ScoopCommandPath { 'D:\Scoop\shims\scoop.ps1' }
         Mock -ModuleName ScoopCore Test-Path { $false }
-        Mock -ModuleName ScoopCore Invoke-ScoopCommand {}
+        Mock -ModuleName ScoopCore Invoke-ScoopCommand {
+            $script:ScoopCalls.Add($Arguments -join ' ')
+        }
 
         Install-ScoopConfiguredPackages -Root 'D:\Scoop' -Confirm:$false
 
-        Should -Invoke -ModuleName ScoopCore Invoke-ScoopCommand -Times 9 -Exactly
+        Should -Invoke -ModuleName ScoopCore Invoke-ScoopCommand -Times 11 -Exactly
+        $script:ScoopCalls[0] | Should -Be 'install main/git'
+        Should -Invoke -ModuleName ScoopCore Invoke-ScoopCommand -Times 1 -Exactly -ParameterFilter {
+            $Arguments -join ' ' -eq 'install main/fnm'
+        }
+        Should -Invoke -ModuleName ScoopCore Invoke-ScoopCommand -Times 1 -Exactly -ParameterFilter {
+            $Arguments -join ' ' -eq 'install main/pnpm'
+        }
         Should -Invoke -ModuleName ScoopCore Invoke-ScoopCommand -Times 1 -Exactly -ParameterFilter {
             $Arguments -join ' ' -eq 'install extras/alacritty'
         }

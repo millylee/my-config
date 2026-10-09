@@ -67,6 +67,8 @@ $bootstrap = [scriptblock]::Create((irm https://raw.githubusercontent.com/millyl
 
 ```text
 main/git
+main/fnm
+main/pnpm
 main/pwsh
 main/zellij
 main/starship
@@ -76,6 +78,8 @@ nerd-fonts/JetBrainsMono-NF
 ```
 
 默认 bucket 和软件清单位于 [`config/scoop.psd1`](config/scoop.psd1)，修改这个文件即可改变仓库默认值。`main` 是 Scoop 内置 bucket，不需要写入 `Buckets`。
+
+Git 会优先安装，再添加额外 bucket 和安装其他软件。fnm 用于管理 Node.js 版本，pnpm 通过 Scoop 安装；此步骤不会自动安装 Node.js 或修改 PowerShell profile。
 
 临时追加软件或 bucket，不修改默认配置：
 
