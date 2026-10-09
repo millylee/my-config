@@ -17,7 +17,7 @@ Describe 'Scoop paths and package map' {
 
     It 'maps every configured Windows tool to a Scoop manifest' {
         $packages = @(Get-ScoopPackageMap)
-        $packages.Count | Should -Be 9
+        $packages.Count | Should -Be 10
         "$($packages[0].Bucket)/$($packages[0].App)" | Should -Be 'main/git'
         "$($packages[1].Bucket)/$($packages[1].App)" | Should -Be 'main/fnm'
         "$($packages[2].Bucket)/$($packages[2].App)" | Should -Be 'main/pnpm'
@@ -26,6 +26,7 @@ Describe 'Scoop paths and package map' {
         ($packages | ForEach-Object { "$($_.Bucket)/$($_.App)" }) | Should -Contain 'main/starship'
         ($packages | ForEach-Object { "$($_.Bucket)/$($_.App)" }) | Should -Contain 'main/neovim'
         ($packages | ForEach-Object { "$($_.Bucket)/$($_.App)" }) | Should -Contain 'extras/alacritty'
+        ($packages | ForEach-Object { "$($_.Bucket)/$($_.App)" }) | Should -Contain 'extras/googlechrome'
         ($packages | ForEach-Object { "$($_.Bucket)/$($_.App)" }) | Should -Contain 'nerd-fonts/JetBrainsMono-NF'
     }
 
@@ -152,8 +153,11 @@ Describe 'Install-ScoopConfiguredPackages' {
 
         Install-ScoopConfiguredPackages -Root 'D:\Scoop' -Confirm:$false
 
-        Should -Invoke -ModuleName ScoopCore Invoke-ScoopCommand -Times 11 -Exactly
+        Should -Invoke -ModuleName ScoopCore Invoke-ScoopCommand -Times 12 -Exactly
         $script:ScoopCalls[0] | Should -Be 'install main/git'
+        Should -Invoke -ModuleName ScoopCore Invoke-ScoopCommand -Times 1 -Exactly -ParameterFilter {
+            $Arguments -join ' ' -eq 'install extras/googlechrome'
+        }
         Should -Invoke -ModuleName ScoopCore Invoke-ScoopCommand -Times 1 -Exactly -ParameterFilter {
             $Arguments -join ' ' -eq 'install main/fnm'
         }

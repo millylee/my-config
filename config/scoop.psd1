@@ -14,6 +14,7 @@
         'main/starship'
         'main/neovim'
         'extras/alacritty'
+        'extras/googlechrome'
         'nerd-fonts/JetBrainsMono-NF'
     )
 }
